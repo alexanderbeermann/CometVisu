@@ -15,13 +15,14 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
- *
- * @module Web 
- * @title  CometVisu Web 
  */
 
 
 /**
+ * TODO: complete docs
+ *
+ * @module structure/pure/Web
+ * @requires structure/pure
  * @author Christian Mayer
  * @since 2012
  */
@@ -30,18 +31,27 @@ define( ['_common'], function( design ) {
   var basicdesign = design.basicdesign;
   
   design.basicdesign.addCreator('web', {
+  /**
+   * Description
+   * @method create
+   * @param {} element
+   * @param {} path
+   * @param {} flavour
+   * @param {} type
+   * @return BinaryExpression
+   */
   create: function( element, path, flavour, type ) {
     var $e = $(element);
 
-    var address = {};
+    var address = {}, src;
     if ($e.attr('ga')) {
       src = $e.attr('ga');
       templateEngine.addAddress($e.attr('ga'));
       address[ '_' + $e.attr('ga') ] = [ 'DPT:1.001', 0 ];
     }
 
-    var layout = $e.children('layout')[0];
-    var style = layout ? 'style="' + basicdesign.extractLayout( layout, type ) + '"' : '';
+    var layout = basicdesign.parseLayout( $e.children('layout')[0] );
+    var style = $.isEmptyObject(layout) ? '' : 'style="' + basicdesign.extractLayout( layout, type ) + '"';
     var classes = basicdesign.setWidgetLayout( $e, path );
 
     if( $e.attr('flavour') ) flavour = $e.attr('flavour');// sub design choice
@@ -67,7 +77,9 @@ define( ['_common'], function( design ) {
   
     var refresh = $e.attr('refresh') ? $e.attr('refresh')*1000 : 0;
     var data = templateEngine.widgetDataInsert( path, {
+      'path'    : path,
       'address': address,
+      'layout' : layout,
       'refresh': refresh
     } );
     
@@ -79,6 +91,12 @@ define( ['_common'], function( design ) {
 
     return ret_val + actor + '</div>';
   },
+  /**
+   * Description
+   * @method update
+   * @param {} ga
+   * @param {} data
+   */
   update: function( ga, data) {
     var 
       element    = $(this),

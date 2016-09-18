@@ -15,13 +15,14 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
- *
- * @module Page 
- * @title  CometVisu Page 
  */
 
 
 /**
+ * TODO: complete docs
+ *
+ * @module structure/pure/Page
+ * @requires structure/pure
  * @author Christian Mayer
  * @since 2012
  */
@@ -32,6 +33,15 @@ define( ['_common'], function( design ) {
     allPages = '';
  
   design.basicdesign.addCreator('page', {
+  /**
+   * Description
+   * @method create
+   * @param {} page
+   * @param {} path
+   * @param {} flavour
+   * @param {} type
+   * @return ret_val
+   */
   create: function( page, path, flavour, type ) {
     var $p = $(page);
     
@@ -82,12 +92,12 @@ define( ['_common'], function( design ) {
 
     var ret_val;
     
+    var layout = basicdesign.parseLayout( $p.children('layout')[0] );
     if ($p.attr('visible')=='false') {
       ret_val='';
     }
     else { // default is visible
-      var layout = $p.children('layout')[0];
-      var style = layout ? 'style="' + basicdesign.extractLayout( layout, type ) + '"' : '';
+      var style = $.isEmptyObject(layout) ? '' : 'style="' + basicdesign.extractLayout( layout, type ) + '"';
       var classes = basicdesign.setWidgetLayout( $p, path );
       ret_val = '<div class="widget clearfix link pagelink '+(classes?classes:'')+'" ' + style + '>';
       ret_val += '<div class="actor" ' + wstyle + '><a href="javascript:">' + name + '</a></div>';
@@ -105,21 +115,40 @@ define( ['_common'], function( design ) {
     var subpage = '<div class="page type_' + type + subpageClass + '" id="' + path + '_">';
     var data = templateEngine.widgetDataInsert( path + '_', {
       name             : name,
+      type             : type,
       showtopnavigation: showtopnavigation,
       showfooter       : showfooter,
-      shownavbar       : shownavbar
+      shownavbar       : shownavbar,
+      layout           : layout,
+      backdropalign    : '2d' === type ? ($p.attr('backdropalign' ) || '50% 50%') : undefined
     });
     var container = '<div class="clearfix" style="height:100%;position:relative;"><h1>' + name + '</h1>'; 
     
     if( '2d' == type )
     {
       var size = 'width:100%;height:100%;';
-      if( $p.attr('size') == 'fixed' )
-        size = '';
-      // else: assume scaled
+      switch( $p.attr('size') )
+      {
+        case 'fixed':
+          size = '';
+          break;
+          
+        case 'contained':
+          size += 'object-fit:contain;';
+          if( $p.attr('backdropalign' ) )
+          {
+            size += 'object-position:' + data.backdropalign + ';';
+          }
+          break;
+          
+        case 'scaled':
+        default: // default: assume scaled
+      }
+      
       if (undefined != backdrop) {
         var elemType = '.svg' == backdrop.substring( backdrop.length - 4 ) ? 'embed' : 'img';
         container += '<' + elemType + ' src="' + backdrop + '" style="position: absolute; top: 0px; left: 0px;z-index:-1;' + size + '"/>';
+        data.backdroptype = elemType;
       }
     } else if( '3d' == type && false ) //---Disable 3D for 0.8---
     {
@@ -176,43 +205,60 @@ define( ['_common'], function( design ) {
     allPages = subpage + allPages;
     return ret_val;
   },
+  /**
+   * Description
+   * @method createFinal
+   */
   createFinal: function() { // special function - only for pages!
     $('#pages').prepend( allPages );
   },
+  /**
+   * Description
+   * @method update
+   * @param {} ga
+   * @param {} data
+   */
   update: function( ga, data ) {
     var 
-      element = $(this),
-      widgetData  = templateEngine.widgetDataGetByElement( element );
-    var value = basicdesign.defaultValueHandling( ga, data, widgetData );
-    var type = widgetData.address[ ga ][2];
-    switch( type )
-    {
-      case 'azimut':
-        widgetData.JSFloorPlan3D.setState('currentAzimut', value, true);
-        element.trigger( 'update3d', widgetData.JSFloorPlan3D );
-        break;
-        
-      case 'elevation':
-        widgetData.JSFloorPlan3D.setState('currentElevation', value, true);
-        element.trigger( 'update3d', widgetData.JSFloorPlan3D );
-        break;
-        
-      case 'floor':
-        widgetData.JSFloorPlan3D.moveToRoom( value, false, true, true, function(){
-          element.trigger( 'update3d', widgetData.JSFloorPlan3D );
-        });
-        break;
-        
-      default:
-        // TODO: data comparision has to be refactored to use DPT and a value
-        if (data==1) {
-          templateEngine.scrollToPage(element.context.firstChild.textContent);
-          templateEngine.visu.write( ga, templateEngine.transformEncode('DPT:1.001', 0));
-        }
+      element = $(this);
+    // widgetData  = templateEngine.widgetDataGetByElement( element );
+    // var value = basicdesign.defaultValueHandling( ga, data, widgetData );
+    // var type = widgetData.address[ ga ][2];
+    // switch( type )
+    // {
+    //   case 'azimut':
+    //     widgetData.JSFloorPlan3D.setState('currentAzimut', value, true);
+    //     element.trigger( 'update3d', widgetData.JSFloorPlan3D );
+    //     break;
+    //
+    //   case 'elevation':
+    //     widgetData.JSFloorPlan3D.setState('currentElevation', value, true);
+    //     element.trigger( 'update3d', widgetData.JSFloorPlan3D );
+    //     break;
+    //
+    //   case 'floor':
+    //     widgetData.JSFloorPlan3D.moveToRoom( value, false, true, true, function(){
+    //       element.trigger( 'update3d', widgetData.JSFloorPlan3D );
+    //     });
+    //     break;
+    //
+    //   default:
+    // TODO: data comparision has to be refactored to use DPT and a value
+    if (data==1) {
+      templateEngine.scrollToPage(element.context.firstChild.textContent);
+      templateEngine.visu.write( ga, templateEngine.transformEncode('DPT:1.001', 0));
     }
+    // }
   },
-  action: function( path, actor, isCaneled ) {
-    if( isCaneled ) return;
+  /**
+   * Description
+   * @method action
+   * @param {} path
+   * @param {} actor
+   * @param {} isCanceled
+   */
+  action: function( path, actor, isCanceled ) {
+    if( isCanceled ) return;
     
     templateEngine.scrollToPage( path + '_' );
   }

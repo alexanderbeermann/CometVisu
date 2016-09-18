@@ -1,3 +1,6 @@
+var fs = require('fs'),
+  path = require('path');
+
 var mocks = [];
 function captureMock() {
   return function (req, res, next) {
@@ -35,6 +38,19 @@ function mock() {
     var mockedResponse = mocks[url];
     if (mockedResponse) {
       res.write(mockedResponse);
+      res.end();
+    } else if (url == "/designs/get_designs.php") {
+      // untested
+      var dir = path.join("src", "designs");
+      var designs = [];
+      fs.readdirSync(dir).forEach(function(designDir) {
+        var filePath = path.join(dir, designDir);
+        var stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          designs.push(designDir);
+        }
+      });
+      res.write(JSON.stringify(designs));
       res.end();
     } else {
       next();
@@ -93,7 +109,6 @@ module.exports = function(grunt) {
           linebreak: true,
           process: function( filepath ) {
             var filename = filepath.match(/\/([^/]*)$/)[1];
-            var modulename = filename.substring(0,1).toUpperCase()+filename.substring(1).replace(".js","");
 
             return grunt.template.process('/* <%= filename %> \n'+
               ' * \n'+
@@ -112,14 +127,9 @@ module.exports = function(grunt) {
               ' * You should have received a copy of the GNU General Public License along\n'+
               ' * with this program; if not, write to the Free Software Foundation, Inc.,\n'+
               ' * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA\n'+
-              ' *\n'+
-              ' * @module <%= modulename %> \n'+
-              ' * @title  <%= title %> \n'+
               ' */\n', {
                   data: {
                     filename: filename,
-                    modulename: modulename,
-                    title: "CometVisu " + modulename,
                     author: pkg.authors[0].name+ " ["+pkg.authors[0].email+"]",
                     version: pkg.version
                   }
@@ -133,6 +143,42 @@ module.exports = function(grunt) {
       }
     },
 
+    // minify svg icons
+    svgmin: {
+      options: {
+        plugins: [
+          {
+            convertTransform: false
+          }
+        ]
+      },
+      dist: {
+        files: [
+          {
+            expand: true,
+            cwd: 'external/knx-uf-iconset/raw_svg/',
+            src: '*.svg',
+            dest: 'cache/icons/'
+          }
+        ]
+      }
+    },
+
+    // build icons
+    svgstore: {
+      options: {
+        prefix : 'kuf-', // This will prefix each <g> ID
+        includeTitleElement: false
+      },
+      default : {
+        files: {
+          'src/icon/knx-uf-iconset.svg': [
+            'cache/icons/*.svg'
+          ]
+        }
+      }
+    },
+    
     // appcache
     manifest: {
       generate: {
@@ -195,7 +241,7 @@ module.exports = function(grunt) {
 
           modules: [
             // the main application
-            { name: 'lib/templateengine', include: ['css'] },
+            { name: 'lib/TemplateEngine', include: ['css'] },
             // optimize the plugins
             { name: 'plugins/calendarlist/structure_plugin',   exclude: ['structure_custom', 'css', 'normalize']  },
             { name: 'plugins/clock/structure_plugin',          exclude: ['structure_custom', 'css', 'normalize']  },
@@ -316,23 +362,38 @@ module.exports = function(grunt) {
     },
 
     jsdoc : {
-      dist : {
+      html : {
         src: [
           'src/lib/**/*.js',
           'src/plugins/**/*.js',
           'src/structure/**/*.js'
         ],
         options: {
-          destination: 'doc',
+          destination: grunt.option('targetDir') || 'doc/api/html',
           template : "node_modules/ink-docstrap/template",
-          configure : "node_modules/ink-docstrap/template/jsdoc.conf.json"
+          configure : ".doc/jsdoc.conf.json"
+        }
+      },
+      rst : {
+        src: [
+          'src/lib/**/*.js',
+          'src/plugins/**/*.js',
+          'src/structure/**/*.js'
+        ],
+        options: {
+          destination: grunt.option('targetDir') || 'doc/api/rst',
+          template : "node_modules/jsdoc-sphinx/template/",
+          configure : ".doc/jsdoc.conf.json"
         }
       }
     },
 
     clean: {
       archives : ['*.zip', '*.gz'],
-      release: ['release/']
+      release: ['release/'],
+      iconcache: ['cache/icons'],
+      exampleCache: ['cache/widget_examples/jsdoc'],
+      apiDoc: ['doc/api']
     },
 
     "file-creator": {
@@ -405,9 +466,16 @@ module.exports = function(grunt) {
           dir: 'coverage',
           reporters: [
             { type : 'lcov' },
+            { type: 'html'},
             { type : 'text-summary' }
           ]
         }
+      },
+      debug: {
+        configFile: 'karma.conf.js',
+        singleRun: true,
+        browsers: ['PhantomJS'],
+        reporters: ['progress']
       }
     },
 
@@ -446,6 +514,48 @@ module.exports = function(grunt) {
             }
           }
         }
+      },
+      screenshots: {
+        options: {
+          configFile: ".doc/protractor.conf.js",
+          args: {
+            params: {
+              subDir: grunt.option('subDir')
+            },
+            capabilities: {
+              browserName: grunt.option('browserName') || 'firefox',
+              marionette: true
+            }
+          }
+        }
+      },
+      screenshotsSource: {
+        options: {
+          configFile: ".doc/protractor.conf.js",
+          args: {
+            params: {
+              subDir: "jsdoc"
+            },
+            capabilities: {
+              browserName: grunt.option('browserName') || 'firefox',
+              marionette: true
+            }
+          }
+        }
+      },
+      screenshotsManual: {
+        options: {
+          configFile: ".doc/protractor.conf.js",
+            args: {
+            params: {
+              subDir: "manual"
+            },
+            capabilities: {
+              browserName: grunt.option('browserName') || 'firefox',
+                marionette: true
+            }
+          }
+        }
       }
     },
 
@@ -456,6 +566,45 @@ module.exports = function(grunt) {
         dryRun: false,
         force: true,
         recursive: true
+      }
+    },
+
+    shell: {
+      updateicons: {
+        command: [
+          'git submodule init',
+          'git submodule update',
+          'cd external/knx-uf-iconset',
+          'git checkout master',
+          'git pull',
+          'cd ../../',
+          // 'git add external/knx-uf-iconset',
+          //'git commit -m "icons updated"'
+        ].join('&&')
+      }
+    },
+
+    scaffold: {
+      widgetTest: {
+        options: {
+          questions: [{
+            name: 'widgetName',
+            type: 'input',
+            message: 'Widget name:'
+          }],
+          filter: function (result) {
+            result['testFileName'] = result.widgetName.substr(0,1).toUpperCase() + result.widgetName.substr(1);
+            return result;
+          },
+          template: {
+            "skeletons/widget-test.js": "test/karma/structure/pure/{{testFileName}}-spec.js"
+          },
+          after: function(result) {
+            var filename = "test/karma/structure/pure/"+result.testFileName+"-spec.js";
+            var test = grunt.file.read(filename, { encoding: "utf8" }).toString();
+            grunt.file.write(filename, test.replace(/%WIDGET_NAME%/g, result.widgetName));
+          }
+        }
       }
     }
   });
@@ -471,6 +620,37 @@ module.exports = function(grunt) {
     filename = 'release/index.html';
     config = grunt.file.read(filename, { encoding: "utf8" }).toString();
     grunt.file.write(filename, config.replace(/comet_16x16_000000.png/g, 'comet_16x16_ff8000.png'));
+  });
+  
+  // custom task to fix the KNX user forum icons and add them to the iconconfig.js:
+  // - replace #FFFFFF with the currentColor
+  // - fix viewBox to follow the png icon version
+  grunt.registerTask('handle-kuf-svg', function() {
+    var filename   = 'src/icon/knx-uf-iconset.svg';
+    var iconconfig = 'src/icon/iconconfig.js';
+    var svg = grunt.file.read(filename, { encoding: "utf8" }).toString();
+    grunt.file.write(filename, svg
+      .replace( /#FFFFFF|#fff/g, 'currentColor' )
+      .replace( /viewBox="0 0 361 361"/g, 'viewBox="30 30 301 301"' ) // emulate a shave 40 on a 480px image
+    );
+    
+    var symbolRegEx = /<symbol.*?id="kuf-(.*?)".*?>/g;
+    var kufIcons = '';
+    while( (icon = symbolRegEx.exec( svg )) !== null )
+    {
+      // icon id = icon[1]
+      
+      if( kufIcons !== '' )
+        kufIcons += ",\n";
+      
+      kufIcons += "    '" + icon[1] + "': { '*' : { 'white' : '*/white', 'ws' : '*/white', 'antimony' : '*/blue', 'boron' : '*/green', 'lithium' : '*/red', 'potassium' : '*/purple', 'sodium' : '*/orange', '*': { '*' : svgKUF('" + icon[1] + "') } } }";
+    }
+    var start = '// Do not remove this line: Dynamic Icons Start';
+    var end   = '// Do not remove this line: Dynamic Icons End';
+    var iconconfigFile = grunt.file.read(iconconfig, { encoding: "utf8" }).toString();
+    grunt.file.write(iconconfig, iconconfigFile
+      .replace( RegExp( start + '[\\s\\S]*' + end, 'm' ), start + "\n\n" + kufIcons + "\n\n    " + end )
+    );
   });
 
   // Load the plugin tasks
@@ -492,14 +672,28 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-protractor-runner');
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-karma-coveralls');
+  grunt.loadNpmTasks('grunt-svgstore');
+  grunt.loadNpmTasks('grunt-svgmin');
+  grunt.loadNpmTasks('grunt-shell');
+  grunt.loadNpmTasks('grunt-scaffold');
 
   // Default task runs all code checks, updates the banner and builds the release
+  grunt.registerTask('buildicons', ['clean:iconcache', 'svgmin', 'svgstore', 'handle-kuf-svg']);
   //grunt.registerTask('default', [ 'jshint', 'jscs', 'usebanner', 'requirejs', 'manifest', 'compress:tar', 'compress:zip' ]);
-  grunt.registerTask('build', [ 'jscs', 'clean', 'file-creator', 'requirejs', 'manifest', 'update-demo-config', 'chmod', 'compress:tar', 'compress:zip' ]);
+  grunt.registerTask('build', [ 'jscs', 'clean', 'file-creator', 'buildicons', 'requirejs', 'manifest', 'update-demo-config', 'chmod', 'compress:tar', 'compress:zip' ]);
   grunt.registerTask('lint', [ 'jshint', 'jscs' ]);
 
   grunt.registerTask('release', [ 'prompt', 'build', 'github-release' ]);
   grunt.registerTask('e2e', ['connect', 'protractor:travis']);
+  grunt.registerTask('e2e-chrome', ['connect', 'protractor:all']);
+  grunt.registerTask('screenshots', ['connect', 'protractor:screenshots']);
+  grunt.registerTask('screenshotsSource', ['connect', 'protractor:screenshotsSource']);
+  grunt.registerTask('screenshotsManual', ['connect', 'protractor:screenshotsManual']);
+  grunt.registerTask('api-doc', ['clean:exampleCache', 'clean:apiDoc', 'jsdoc:html', 'screenshotsSource']);
+
+  // update icon submodule
+  grunt.registerTask('updateicons', ['shell:updateicons']);
 
   grunt.registerTask('default', 'build');
+
 };
