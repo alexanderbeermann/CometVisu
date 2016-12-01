@@ -371,7 +371,7 @@ module.exports = function(grunt) {
         options: {
           destination: grunt.option('targetDir') || 'doc/api/html',
           template : "node_modules/ink-docstrap/template",
-          configure : ".doc/jsdoc.conf.json"
+          configure : "utils/jsdoc.conf.json"
         }
       },
       rst : {
@@ -383,7 +383,7 @@ module.exports = function(grunt) {
         options: {
           destination: grunt.option('targetDir') || 'doc/api/rst',
           template : "node_modules/jsdoc-sphinx/template/",
-          configure : ".doc/jsdoc.conf.json"
+          configure : "utils/jsdoc.conf.json"
         }
       }
     },
@@ -475,7 +475,10 @@ module.exports = function(grunt) {
         configFile: 'karma.conf.js',
         singleRun: true,
         browsers: ['PhantomJS'],
-        reporters: ['progress']
+        reporters: ['progress'],
+        client: {
+          captureConsole: true
+        }
       }
     },
 
@@ -517,10 +520,11 @@ module.exports = function(grunt) {
       },
       screenshots: {
         options: {
-          configFile: ".doc/protractor.conf.js",
+          configFile: "utils/protractor.conf.js",
           args: {
             params: {
-              subDir: grunt.option('subDir')
+              subDir: grunt.option('subDir'),
+              screenshots: grunt.option('files')
             },
             capabilities: {
               browserName: grunt.option('browserName') || 'firefox',
@@ -531,7 +535,7 @@ module.exports = function(grunt) {
       },
       screenshotsSource: {
         options: {
-          configFile: ".doc/protractor.conf.js",
+          configFile: "utils/protractor.conf.js",
           args: {
             params: {
               subDir: "jsdoc"
@@ -545,7 +549,7 @@ module.exports = function(grunt) {
       },
       screenshotsManual: {
         options: {
-          configFile: ".doc/protractor.conf.js",
+          configFile: "utils/protractor.conf.js",
             args: {
             params: {
               subDir: "manual"
