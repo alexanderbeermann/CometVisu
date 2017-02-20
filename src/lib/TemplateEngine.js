@@ -245,6 +245,10 @@ define([
     if ($.getUrlVar('forceReload')) {
       this.forceReload = $.getUrlVar('forceReload') != 'false'; // true unless set
       // to false
+      if (this.forceReload === true) {
+        // do not use cache when use set forceReload
+        this.enableCache = false;
+      }
     }
 
     if ($.getUrlVar('forceDevice')) {
@@ -676,6 +680,11 @@ define([
         width = thisTemplateEngine.getAvailableWidth();
         height = thisTemplateEngine.getAvailableHeight();
         $pageSize.text('#main,.page{width:' + (width - 0) + 'px;height:' + height + 'px;}');
+        
+        if (thisTemplateEngine.adjustColumns()) {
+          // the amount of columns has changed -> recalculate the widgets widths
+          thisTemplateEngine.applyColumnWidths();
+        }
 
         invalidPagesize = false;
       }
@@ -968,7 +977,11 @@ define([
 
     this.init = function() {
       thisTemplateEngine.initBackendClient();
-      require( thisTemplateEngine.configSettings.getCSSlist, delaySetup('design') );
+      require( thisTemplateEngine.configSettings.getCSSlist, delaySetup('design'), function( err ) {
+        console.log( 'Failed to load design! Falling back to simplified "pure"' );
+        thisTemplateEngine.configSettings.getCSSlist = [ 'css!designs/pure/basic.css', 'designs/pure/design_setup' ];
+        require( thisTemplateEngine.configSettings.getCSSlist, delaySetup('design') );
+      } );
       var delaySetupPluginsCallback = delaySetup('plugins');
       require( thisTemplateEngine.configSettings.pluginsToLoad, delaySetupPluginsCallback, function( err ) {
         console.log( 'Plugin loading error! It happend with: "' + err.requireModules[0] + '". Is the plugin available and written correctly?');
@@ -1058,14 +1071,10 @@ define([
 
           // check if cache is still valid
           if (!thisTemplateEngine.configCache.isValid(xml)) {
-            // TODO: remove before release
-            console.log("invalidating cache");
             // cache invalid
             cache = false;
             thisTemplateEngine.configCache.clear();
           } else {
-            // TODO: remove before release
-            console.log("using cache");
             cache = thisTemplateEngine.configCache.getData();
             thisTemplateEngine.widgetData = cache.data;
             thisTemplateEngine.ga_list = cache.addresses;
@@ -1076,8 +1085,6 @@ define([
           }
         }
         if (!cache) {
-          // TODO: remove before release
-          console.log("not using cache");
           var page = $('pages > page', xml)[0]; // only one page element allowed...
 
           thisTemplateEngine.create_pages(page, 'id');
@@ -1111,6 +1118,9 @@ define([
               rememberLastPage = false;
             }
           }
+          // check that startpage does exits
+          if( $('#'+startpage+'.page').length === 0 )
+            startpage = 'id_';   // default to top most page
         }
         thisTemplateEngine.currentPage = $('#'+startpage);
 
@@ -1118,8 +1128,8 @@ define([
         thisTemplateEngine.applyColumnWidths();
 
         thisTemplateEngine.main_scroll = new PageHandler();
-        if (thisTemplateEngine.scrollSpeed != undefined) {
-          thisTemplateEngine.main_scroll.setSpeed( thisTemplateEngine.scrollSpeed );
+        if (thisTemplateEngine.configSettings.scrollSpeed != undefined) {
+          thisTemplateEngine.main_scroll.setSpeed( thisTemplateEngine.configSettings.scrollSpeed );
         }
 
         thisTemplateEngine.scrollToPage(startpage,0);
@@ -1369,7 +1379,7 @@ define([
       }
 
       if( undefined === speed )
-        speed = thisTemplateEngine.scrollSpeed;
+        speed = thisTemplateEngine.configSettings.scrollSpeed;
 
       if( rememberLastPage )
         localStorage.lastpage = page_id;
